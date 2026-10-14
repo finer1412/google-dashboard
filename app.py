@@ -82,6 +82,65 @@ st.markdown("""
         border-radius: 12px;
         margin-right: 8px;
     }
+    /* 상품 추천 카드 스타일 */
+    .product-box {
+        background-color: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 12px;
+        padding: 18px 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+        transition: all 0.2s ease;
+        min-height: 250px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+    .product-box:hover {
+        border-color: #3B82F6;
+        box-shadow: 0 6px 16px rgba(59,130,246,0.10);
+        transform: translateY(-2px);
+    }
+    .product-tag {
+        display: inline-block;
+        background-color: #EEF2FF;
+        color: #4F46E5;
+        font-size: 0.78rem;
+        font-weight: 600;
+        padding: 3px 9px;
+        border-radius: 6px;
+        margin-bottom: 10px;
+    }
+    .product-name {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #0F172A;
+        line-height: 1.4;
+        margin-bottom: 6px;
+    }
+    .product-price {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #059669;
+        margin-bottom: 10px;
+    }
+    .product-desc-list {
+        font-size: 0.88rem;
+        color: #475569;
+        padding-left: 18px;
+        margin-bottom: 15px;
+        flex-grow: 1;
+    }
+    .product-desc-list li {
+        margin-bottom: 4px;
+    }
+    .shop-hub-banner {
+        background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin-bottom: 24px;
+    }
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
     }
@@ -127,7 +186,7 @@ STOPWORDS_KO = {
 
 
 # ==========================================
-# 3. 데이터 수집 함수 (캐싱 적용)
+# 3. 데이터 수집 및 비즈니스 로직 함수
 # ==========================================
 @st.cache_data(ttl=600, show_spinner=False)
 def fetch_google_trends(keywords, period_option, geo):
@@ -153,7 +212,6 @@ def fetch_google_trends(keywords, period_option, geo):
 
     try:
         pytrend = TrendReq(hl='ko-KR' if geo == 'KR' else 'en-US', tz=540, timeout=(10, 25))
-        # 최대 5개 키워드까지 지원
         kw_list = [k.strip() for k in keywords[:5] if k.strip()]
         pytrend.build_payload(kw_list=kw_list, timeframe=timeframe, geo=geo_code)
         df = pytrend.interest_over_time()
@@ -237,7 +295,6 @@ def extract_keywords_from_titles(titles, extra_stopwords=None):
 
     all_words = []
     for title in titles:
-        # 한글, 영문, 숫자 단어 추출 (2글자 이상)
         words = re.findall(r'[가-힣a-zA-Z0-9]{2,}', title)
         for w in words:
             w_lower = w.lower()
@@ -245,6 +302,144 @@ def extract_keywords_from_titles(titles, extra_stopwords=None):
                 all_words.append(w)
 
     return Counter(all_words)
+
+
+def get_recommended_products(keyword):
+    """
+    키워드별 추천 상품 카탈로그 및 동적 큐레이션 데이터 생성
+    """
+    kw = keyword.strip()
+    
+    # 대표 카테고리 큐레이션 데이터베이스
+    curated_catalog = {
+        "인공지능": [
+            {
+                "name": "Google Nest Hub (2세대) 스마트 디스플레이",
+                "tag": "AI 스마트홈",
+                "price": "약 80,000원 ~ 110,000원",
+                "features": ["Google Assistant 탑재", "7인치 터치스크린 & 수면 센싱", "IoT 기기 통합 음성 제어"],
+                "query": "구글 네스트 허브 2세대"
+            },
+            {
+                "name": "라즈베리파이 5 AI 스타터 키트 (Raspberry Pi AI)",
+                "tag": "개발 / 입문",
+                "price": "약 140,000원 ~ 180,000원",
+                "features": ["온디바이스 AI 비전 모델 구동 지원", "Hailo-8L NPU 모듈 확장 가능", "Python 기반 딥러닝 실습"],
+                "query": "라즈베리파이 5 AI 키트"
+            },
+            {
+                "name": "NVIDIA Jetson Orin Nano 개발자 키트",
+                "tag": "고성능 AI",
+                "price": "약 650,000원 ~ 780,000원",
+                "features": ["최대 40 TOPS AI 연산 지원", "생성형 AI 및 임베디드 로보틱스 개발", "공식 CUDA 라이브러리 지원"],
+                "query": "NVIDIA Jetson Orin Nano"
+            },
+            {
+                "name": "생성형 AI & 챗GPT 실무 프롬프트 바이블",
+                "tag": "도서 / 가이드",
+                "price": "약 22,000원 ~ 30,000원",
+                "features": ["ChatGPT, Claude, 미드저니 실무 활용법", "업무 자동화 템플릿 100종 수록", "입문자용 단계별 설명"],
+                "query": "생성형 AI 프롬프트 도서"
+            }
+        ],
+        "로봇": [
+            {
+                "name": "로보락 S8 Pro Ultra / MaxV 올인원 로봇청소기",
+                "tag": "생활 가전 베스트",
+                "price": "약 1,300,000원 ~ 1,600,000원",
+                "features": ["자동 먼지 비움 및 물걸레 온수 세척", "AI 장애물 3D 인식 및 회피", "듀얼 롤러 및 강력한 흡입력"],
+                "query": "로보락 올인원 로봇청소기"
+            },
+            {
+                "name": "레고 스파이크 프라임 (SPIKE Prime) 코딩 로봇 교구",
+                "tag": "교육 / 코딩",
+                "price": "약 480,000원 ~ 560,000원",
+                "features": ["초중고 STEAM 코딩 교육 표준 키트", "Scratch & Python 프로그래밍 지원", "다양한 서보모터 및 센서 포함"],
+                "query": "레고 스파이크 프라임 로봇"
+            },
+            {
+                "name": "스마트 4족 보행 로봇 키트 (Bionic Quadruped Robot)",
+                "tag": "취미 / 공학",
+                "price": "약 160,000원 ~ 240,000원",
+                "features": ["카메라 기반 자율 주행 및 모션 제어", "스마트폰 앱 원격 조작 지원", "역동작 보행 알고리즘 탑재"],
+                "query": "4족 보행 로봇 키트"
+            },
+            {
+                "name": "초음파 유리창 청소 로봇 (스마트 윈도우 클리너)",
+                "tag": "스마트 리빙",
+                "price": "약 120,000원 ~ 210,000원",
+                "features": ["초음파 듀얼 물분사 시스템", "진공 흡착 안전 낙하 방지", "원터치 스마트 경로 주행"],
+                "query": "유리창 청소 로봇"
+            }
+        ],
+        "챗봇": [
+            {
+                "name": "Amazon Echo Dot (5세대) 알렉사 스마트 스피커",
+                "tag": "음성 대화 비서",
+                "price": "약 65,000원 ~ 85,000원",
+                "features": ["대화형 음성 AI 비서 지원", "선명한 사운드 및 모션 감지 센서", "스마트홈 조명 및 플러그 연동"],
+                "query": "Amazon Echo Dot 5세대"
+            },
+            {
+                "name": "ChatGPT API와 랭체인(LangChain)으로 만드는 챗봇",
+                "tag": "추천 도서",
+                "price": "약 26,000원 ~ 34,000원",
+                "features": ["Python 기반 LLM 챗봇 개발 가이드", "RAG(검색 증강 생성) 시스템 구축", "카카오톡/슬랙 봇 연동"],
+                "query": "ChatGPT API 랭체인 챗봇 도서"
+            },
+            {
+                "name": "엘가토 스트림덱 (Stream Deck MK.2) 매크로 패드",
+                "tag": "업무 생산성",
+                "price": "약 190,000원 ~ 230,000원",
+                "features": ["AI 프롬프트 원클릭 매크로 키 등록", "15개 커스텀 LCD 키패드", "반복적인 업무 효율 300% 향상"],
+                "query": "엘가토 스트림덱 MK.2"
+            },
+            {
+                "name": "AI 빔포밍 마이크 무선 헤드셋 (음성 대화 최적화)",
+                "tag": "하드웨어",
+                "price": "약 180,000원 ~ 320,000원",
+                "features": ["AI 주변 소음 제거 알고리즘 탑재", "선명한 음성 인식율 보장", "장시간 화상 회의 및 음성 대화용"],
+                "query": "AI 빔포밍 마이크 무선 헤드셋"
+            }
+        ]
+    }
+    
+    # 큐레이션 데이터 매칭 확인
+    for key, items in curated_catalog.items():
+        if key in kw or kw in key:
+            return items
+            
+    # 매칭되지 않는 일반 키워드: 동적 템플릿 생성
+    return [
+        {
+            "name": f"실시간 인기 {kw} 베스트셀러 컬렉션",
+            "tag": "인기 베스트",
+            "price": "가격비교 확인",
+            "features": [f"소비자 만족도 1위 {kw} 대표 아이템", "실시간 쇼핑 랭킹 상위권", "최신 트렌드 반영 디자인"],
+            "query": f"{kw} 인기 베스트셀러"
+        },
+        {
+            "name": f"{kw} 입문자 맞춤형 스타터 패키지",
+            "tag": "입문 / 스타터",
+            "price": "가성비 추천",
+            "features": [f"{kw} 시작에 꼭 필요한 핵심 구성", "입문자 친화적 가성비 라인업", "손쉬운 사용 및 관리"],
+            "query": f"{kw} 입문 추천"
+        },
+        {
+            "name": f"프리미엄 하이엔드 {kw} 스펙 모델",
+            "tag": "프리미엄",
+            "price": "고급형",
+            "features": [f"최고급 사양 및 우수한 내구성", f"{kw} 전문가 및 얼리어답터 강력 추천", "프리미엄 사후 지원"],
+            "query": f"{kw} 프리미엄 추천"
+        },
+        {
+            "name": f"{kw} 활용 극대화 필수 액세서리 & 도서",
+            "tag": "액세서리 / 가이드",
+            "price": "다양한 가격대",
+            "features": [f"{kw} 사용 편의성을 높여주는 보조 용품", "실전 활용 가이드 및 보조 툴", "높은 호환성"],
+            "query": f"{kw} 추천 액세서리"
+        }
+    ]
 
 
 # ==========================================
@@ -303,7 +498,7 @@ with st.sidebar:
 
 # 헤더 영역
 st.markdown('<div class="main-title">📈 Google 트렌드 & 뉴스 분석 대시보드</div>', unsafe_allow_html=True)
-st.markdown(f'<div class="sub-title">실시간 Google Trends 검색 관심도 추이와 Google News 최신 기사를 한눈에 비교 분석합니다. (기준: {period_option}, {geo_option})</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="sub-title">실시간 Google Trends 검색 관심도 추이, 최신 뉴스, 연관 상품 추천을 한눈에 비교 분석합니다. (기준: {period_option}, {geo_option})</div>', unsafe_allow_html=True)
 
 if not keywords:
     st.warning("⚠️ 사이드바에서 분석할 키워드를 1개 이상 입력해주세요.")
@@ -350,7 +545,6 @@ for idx, kw in enumerate(keywords):
                 help=f"기간 평균: {avg_val:.1f} pt | 최고: {max_val} pt ({max_date})"
             )
         else:
-            # 뉴스로만 표시
             kw_news_count = len(combined_news_df[combined_news_df['keyword'] == kw]) if not combined_news_df.empty else 0
             st.metric(label=f"🔍 {kw}", value=f"뉴스 {kw_news_count}건", delta=None)
 
@@ -360,10 +554,11 @@ st.markdown("<br>", unsafe_allow_html=True)
 # ==========================================
 # 6. 탭 구성
 # ==========================================
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 검색량 추이 분석 (Trends)",
     "📰 최신 뉴스 피드 (News)",
     "☁️ 키워드 & 워드클라우드 (Keywords)",
+    "🛍️ 키워드별 상품 추천 (Products)",
     "💾 데이터 테이블 & 다운로드 (Data)"
 ])
 
@@ -375,7 +570,7 @@ with tab1:
     
     if trends_err:
         st.error(f"⚠️ 트렌드 데이터 조회 실패: {trends_err}")
-        st.info("💡 안내: Google Trends 서비스의 일시적인 제한일 수 있습니다. '최신 뉴스 피드' 및 '워드클라우드' 탭은 정상적으로 이용 가능합니다.")
+        st.info("💡 안내: Google Trends 서비스의 일시적인 제한일 수 있습니다. '최신 뉴스 피드', '워드클라우드', '상품 추천' 탭은 정상적으로 이용 가능합니다.")
     elif df_trends.empty:
         st.warning("선택한 조건에 대한 트렌드 검색 결과가 없습니다.")
     else:
@@ -525,7 +720,6 @@ with tab3:
         else:
             titles_to_analyze = combined_news_df[combined_news_df['keyword'] == wc_keyword_sel]['title'].tolist()
 
-        # 입력 키워드 자체는 불용어에 추가하여 의미 있는 주변 연관어를 강조
         current_stopwords = set([k.lower() for k in keywords])
         word_counts = extract_keywords_from_titles(titles_to_analyze, extra_stopwords=current_stopwords)
 
@@ -590,9 +784,96 @@ with tab3:
 
 
 # ------------------------------------------
-# 탭 4: 원본 데이터 & 다운로드
+# 탭 4: 키워드별 추천 상품 & 쇼핑 허브
 # ------------------------------------------
 with tab4:
+    st.subheader("🛍️ 키워드별 대표 추천 상품 & 쇼핑 허브")
+    st.markdown("현재 분석 중인 키워드와 연관된 인기 상품과 실시간 최저가 쇼핑 검색 바로가기를 제공합니다.")
+
+    # 1. 대상 키워드 선택
+    col_sel_kw, col_custom_kw = st.columns([1.5, 2])
+    with col_sel_kw:
+        active_shop_kw = st.selectbox(
+            "상품 추천 대상 키워드 선택",
+            options=keywords,
+            index=0,
+            key="product_tab_keyword_select"
+        )
+    with col_custom_kw:
+        custom_search_kw = st.text_input(
+            "🔎 세부 상품 검색어 직접 입력 (선택)",
+            value=active_shop_kw,
+            help="기본 키워드 대신 원하는 구체적인 상품명(예: 로봇청소기, 인공지능 스피커)을 입력할 수 있습니다."
+        )
+
+    target_query = custom_search_kw.strip() if custom_search_kw.strip() else active_shop_kw
+    encoded_query = urllib.parse.quote(target_query)
+
+    # 2. 실시간 원클릭 쇼핑 검색 허브 배너 & 버튼
+    st.markdown(f"""
+    <div class="shop-hub-banner">
+        <h4 style="margin: 0; color: white;">🛒 '{target_query}' 실시간 쇼핑 가격비교 허브</h4>
+        <p style="margin: 6px 0 0 0; opacity: 0.9; font-size: 0.92rem;">
+            국내외 주요 쇼핑 플랫폼에서 '{target_query}' 관련 실시간 최저가, 사용자 평점 및 배송 정보를 즉시 비교할 수 있습니다.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    hub_col1, hub_col2, hub_col3, hub_col4 = st.columns(4)
+    with hub_col1:
+        google_shop_url = f"https://www.google.com/search?tbm=shop&q={encoded_query}"
+        st.link_button("🌐 Google Shopping 최저가 ↗", google_shop_url, use_container_width=True)
+    with hub_col2:
+        naver_shop_url = f"https://search.shopping.naver.com/search/all?query={encoded_query}"
+        st.link_button("🟢 네이버 쇼핑 검색 ↗", naver_shop_url, use_container_width=True)
+    with hub_col3:
+        danawa_url = f"https://search.danawa.com/dsearch.php?query={encoded_query}"
+        st.link_button("🔵 다나와 가격비교 ↗", danawa_url, use_container_width=True)
+    with hub_col4:
+        coupang_url = f"https://www.coupang.com/np/search?q={encoded_query}"
+        st.link_button("🚀 쿠팡 로켓배송 검색 ↗", coupang_url, use_container_width=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # 3. 키워드별 추천 상품 카드 그리드
+    st.markdown(f"#### 💡 '{active_shop_kw}' 관련 대표 큐레이션 상품")
+    recommended_items = get_recommended_products(active_shop_kw)
+
+    # 2열 x 2행 카드 레이아웃
+    col_prod_left, col_prod_right = st.columns(2)
+    
+    for idx, item in enumerate(recommended_items):
+        target_col = col_prod_left if idx % 2 == 0 else col_prod_right
+        with target_col:
+            features_html = "".join([f"<li>{f}</li>" for f in item["features"]])
+            item_search_url = f"https://www.google.com/search?tbm=shop&q={urllib.parse.quote(item['query'])}"
+            
+            st.markdown(f"""
+            <div class="product-box">
+                <div>
+                    <span class="product-tag">{item['tag']}</span>
+                    <div class="product-name">{item['name']}</div>
+                    <div class="product-price">💰 예상 가격대: {item['price']}</div>
+                    <ul class="product-desc-list">
+                        {features_html}
+                    </ul>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.link_button(
+                label=f"🔍 '{item['query']}' Google Shopping 최저가 확인 ↗",
+                url=item_search_url,
+                use_container_width=True
+            )
+            st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+
+    st.info("💡 **쇼핑 팁**: 관심 있는 상품의 'Google Shopping 최저가 확인' 버튼을 누르면 실시간 최저가, 판매처별 가격 비교, 배송비 및 구매 후기를 즉시 확인할 수 있습니다.")
+
+
+# ------------------------------------------
+# 탭 5: 원본 데이터 & 다운로드
+# ------------------------------------------
+with tab5:
     st.subheader("💾 데이터 원본 및 내보내기")
     
     st.markdown("#### 1. Google Trends 시계열 데이터")
